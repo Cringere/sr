@@ -1,23 +1,30 @@
 import torch
-import torch.nn as nn
 
-from models import model1
+from generators.sr_gan import Generator, CHANNELS, PATCH_SIZE
+from discriminators.sr_gan import Discriminator
 
 def count_parameters(model, name):
 	learnable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 	n_params = "{:,}".format(learnable_parameters)
 	print(f'{name} has {n_params} learnable parameters')
 
+def check_generator(name, gen):
+	print(name)
+	x = torch.zeros((2, CHANNELS, PATCH_SIZE, PATCH_SIZE))
+	print(f'x: {x.shape}')
+	y = gen(x)
+	print(f'y: {y.shape}')
+
 if __name__ == '__main__':
-	gen = model1.Generator()
-	disc = model1.Discriminator()
+	gen = Generator()
+	disc = Discriminator()
 
 	count_parameters(gen, 'generator')
 	count_parameters(disc, 'discriminator')
 
 	print()
 
-	x = torch.zeros((2, model1.CHANNELS, model1.PATCH_SIZE, model1.PATCH_SIZE))
+	x = torch.zeros((2, CHANNELS, PATCH_SIZE, PATCH_SIZE))
 	y = gen(x)
 	d = disc(y)
 	print(x.shape)
@@ -25,7 +32,7 @@ if __name__ == '__main__':
 	print(d.shape)
 	print()
 
-	x = torch.zeros((2, model1.CHANNELS, model1.PATCH_SIZE * 8, model1.PATCH_SIZE * 8))
+	x = torch.zeros((2, CHANNELS, PATCH_SIZE * 8, PATCH_SIZE * 8))
 	y = gen(x)
 	d = disc(y)
 	print(x.shape)

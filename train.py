@@ -5,7 +5,9 @@ from custom_datasets import Div2kSrDataset
 
 import matplotlib.pyplot as plt
 
-from models import model1
+from generators import sr_gan as sr_gan_gen
+from discriminators import sr_gan as sr_gan_disc
+from trainers import gen_disc_trainer
 
 from global_config import *
 
@@ -14,13 +16,16 @@ from tqdm import tqdm
 import os
 from dotenv import load_dotenv
 
+gen_mod = sr_gan_gen
+disc_mod = sr_gan_disc
+
 if __name__ == '__main__':
 	# environment variables
 	load_dotenv()
 	data_root = os.getenv('DIV2K_ROOT_TRAIN')
 	preload_images = os.getenv('PRELOAD_IMAGES') == 'True'
-	preload_pool = int(os.getenv('PRELOAD_POOL'))
 	batch_size = int(os.getenv('BATCH_SIZE'))
+	num_workers = int(os.getenv('NUM_WORKERS'))
 	epochs = int(os.getenv('EPOCHS'))
 	load = os.getenv('LOAD') == 'True'
 	save = os.getenv('SAVE') == 'True'
@@ -31,30 +36,31 @@ if __name__ == '__main__':
 	# data
 	dataset = Div2kSrDataset(
 		root=data_root,
-		high_size=model1.PATCH_SIZE * model1.SCALE_FACTOR * 4,
-		low_size=model1.PATCH_SIZE * 4,
-		preload_images=preload_images
+		high_size=gen_mod.PATCH_SIZE * gen_mod.SCALE_FACTOR * 4,
+		low_size=gen_mod.PATCH_SIZE * 4,
+		preload_images=preload_images,
 	)
 
 	dataloader = DataLoader(
 		dataset,
 		batch_size=batch_size,
 		shuffle=True,
+		num_workers=num_workers,
 	)
 
 	# nets
 	if load:
-		gen = torch.load(os.path.join(MODEL_FILES, model1.GEN_FILE))
-		disc = torch.load(os.path.join(MODEL_FILES, model1.DISC_FILE))
+		gen = torch.load(os.path.join(MODEL_FILES, gen_mod.FILE))
+		disc = torch.load(os.path.join(MODEL_FILES, disc_mod.FILE))
 	else:
-		gen = model1.Generator()
-		disc = model1.Discriminator()
+		gen = gen_mod.Generator()
+		disc = disc_mod.Discriminator()
 
 	gen = gen.to(device)
 	disc = disc.to(device)
 
 	# trainer - manages losses, optimizers and history
-	trainer = model1.Trainer(gen, disc, device)
+	trainer = gen_disc_trainer.Trainer(gen, disc, device)
 
 	# training loop
 	gen.train()
@@ -68,11 +74,19 @@ if __name__ == '__main__':
 
 	# save
 	if save:
-		torch.save(gen, os.path.join(MODEL_FILES, model1.GEN_FILE))
-		torch.save(disc, os.path.join(MODEL_FILES, model1.DISC_FILE))
+		torch.save(gen, os.path.join(MODEL_FILES, gen_mod.FILE))
+		torch.save(disc, os.path.join(MODEL_FILES, disc_mod.FILE))
 
 	# plot loss history
-	plt.plot(trainer.gen_losses, label='generator')
-	plt.plot(trainer.disc_losses, label='discriminator')
+	plt.clf()
+	for label, losses in trainer.get_total_losses().items():
+		plt.plot(losses, label=label)
 	plt.legend()
-	plt.savefig(os.path.join(OUT, 'gen_disc_losses.png'))
+	plt.savefig(os.path.join(OUT, 'total_losses.png'))
+
+	# plot generator loss history
+	plt.clf()
+	for key, value in trainer.get_all_gen_losses().items():
+		plt.plot(value, label=key)
+	plt.legend()
+	plt.savefig(os.path.join(OUT, 'gen_all_losses.png'))

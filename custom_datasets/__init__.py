@@ -1,11 +1,22 @@
 import torchvision.transforms as T
+import torchvision.transforms.functional as F
 from torch.utils.data import Dataset
 
 from PIL import Image
 
-from multiprocessing import Pool
-
 import os
+
+import ray
+ray.init()
+
+@ray.remote
+def load_and_process(path):
+	'''
+	Loads an image, converts it to a tensor and returns
+	'''
+	img = Image.open(path)
+	img = F.to_tensor(img)
+	return img
 
 class Div2kSrDataset(Dataset):
 	def __init__(
@@ -14,8 +25,7 @@ class Div2kSrDataset(Dataset):
 			high_size,
 			low_size,
 			normalize=True,
-			preload_images=False,
-			pool_size=1):
+			preload_images=False):
 		super().__init__()
 		self.root = root
 
@@ -34,11 +44,10 @@ class Div2kSrDataset(Dataset):
 
 		# preload images
 		self.images = None
-		if preload_images:
-			with Pool(pool_size) as p:
-				paths = [os.path.join(self.root, file_path) for file_path in self.files]
-				self.images = p.map(Image.open, paths)
-			self.images = list(map(self.to_tensor, self.images))
+		if preload_images:			
+			paths = [os.path.join(self.root, file_path) for file_path in self.files]
+			images = [load_and_process.remote(p) for p in paths]
+			self.images = ray.get(images)
 
 	def __len__(self):
 		return len(self.files)

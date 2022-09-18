@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 
 from custom_datasets import Div2kSrDataset
 
-from models import model1
+from generators import sr_gan as sr_gan_gen
 
 from global_config import *
 		
@@ -11,6 +11,8 @@ from torchvision.utils import save_image
 
 import os
 from dotenv import load_dotenv
+
+gen_mod = sr_gan_gen
 
 if __name__ == '__main__':
 	# environment variables
@@ -24,7 +26,7 @@ if __name__ == '__main__':
 	dataset = Div2kSrDataset(
 		root=data_root,
 		high_size=512,
-		low_size=512 // model1.SCALE_FACTOR,
+		low_size=512 // gen_mod.SCALE_FACTOR,
 	)
 
 	dataloader = DataLoader(
@@ -33,14 +35,12 @@ if __name__ == '__main__':
 		shuffle=True,
 	)
 
-	# nets
-	gen = torch.load(os.path.join(MODEL_FILES, model1.GEN_FILE))
-	disc = torch.load(os.path.join(MODEL_FILES, model1.DISC_FILE))
+	# load generator
+	gen = torch.load(os.path.join(MODEL_FILES, gen_mod.FILE))
 	gen = gen.to(device)
-	disc = disc.to(device)
+	gen.eval()
 
 	# inference
-	gen.eval()
 	with torch.no_grad():
 		for high_res, low_res in dataloader:
 			# load and pass images
